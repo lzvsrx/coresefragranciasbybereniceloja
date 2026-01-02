@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import database as db
 import utils
+import datetime
 
 def render_product_management():
     st.header("Gerenciamento de Produtos")
@@ -177,6 +178,7 @@ def render_product_management():
                     except Exception as e:
                         st.error(f"❌ Erro crítico ao ler o arquivo CSV: {e}")
     
+    
     # List/Edit/Delete
     st.subheader("Lista de Produtos")
     products_df = db.get_products()
@@ -188,74 +190,133 @@ def render_product_management():
             products_df = products_df[products_df['name'].str.contains(filter_text, case=False, na=False) | 
                                       products_df['brand'].str.contains(filter_text, case=False, na=False)]
         
-        display_df = products_df.drop(columns=['image'])
-        st.dataframe(display_df)
-    
-        # Actions
-        st.write("### Ações (Editar / Vender / Remover)")
-        prod_id = st.number_input("ID do Produto", min_value=1, step=1, key="act_pid")
+        # Grid Layout with Images and Actions
+        cols_per_row = 3
+        rows = len(products_df)
         
-        action_type = st.radio("Selecione a Ação:", ["Editar/Excluir", "Registrar Venda"], horizontal=True, key="act_type")
-        
-        if st.button("Carregar Ação", key="btn_act_load"):
-            st.session_state['act_prod_id_c'] = prod_id
-            st.session_state['act_type_c'] = action_type
-        
-        if 'act_prod_id_c' in st.session_state and st.session_state['act_prod_id_c'] == prod_id:
-            action_prod = db.get_product_by_id(prod_id)
-            if action_prod:
-                current_action = st.session_state.get('act_type_c', 'Editar/Excluir')
-                
-                st.markdown(f"**Produto:** {action_prod[1]} | **Estoque:** {action_prod[6]}")
-                
-                if current_action == 'Registrar Venda':
-                    with st.form("sell_product_form_c"):
-                        qty_sell = st.number_input("Quantidade para Venda", min_value=1, max_value=int(action_prod[6]), step=1)
-                        st.write(f"Total: R$ {qty_sell * action_prod[5]:.2f}")
-                        
-                        if st.form_submit_button("Confirmar Venda"):
-                            # Assume current user context is passed or get from session
-                            user_id = st.session_state['user'][0] if 'user' in st.session_state and st.session_state['user'] else None
-                            success, msg = db.register_sale(prod_id, qty_sell, user_id)
-                            if success:
-                                st.success(msg)
-                                st.rerun()
+        for i in range(0, rows, cols_per_row):
+            cols = st.columns(cols_per_row)
+            for j in range(cols_per_row):
+                if i + j < rows:
+                    row = products_df.iloc[i + j]
+                    with cols[j]:
+                        with st.container(border=True):
+                            # Image
+                            img_src = utils.get_product_image_source(row)
+                            if img_src:
+                                st.image(img_src, use_container_width=True)
                             else:
-                                st.error(msg)
+                                st.markdown("*Sem Imagem*")
                                 
-                elif current_action == 'Editar/Excluir':
-                    with st.form("edit_product_form_c"):
-                        e_name = st.text_input("Nome", value=action_prod[1])
-                        
-                        try: b_idx = utils.MARCAS.index(action_prod[2])
-                        except: b_idx = 0
-                        e_brand = st.selectbox("Marca", utils.MARCAS, index=b_idx)
-                        
-                        try: s_idx = utils.ESTILOS.index(action_prod[3])
-                        except: s_idx = 0
-                        e_style = st.selectbox("Estilo", utils.ESTILOS, index=s_idx)
-                        
-                        try: t_idx = utils.TIPOS.index(action_prod[4])
-                        except: t_idx = 0
-                        e_type = st.selectbox("Tipo", utils.TIPOS, index=t_idx)
-                        
-                        e_price = st.number_input("Preço", value=float(action_prod[5]), min_value=0.01)
-                        e_qty = st.number_input("Qtd", value=int(action_prod[6]), min_value=0)
-                        # Simple date handling
-                        e_exp_date = st.date_input("Vencimento")
-                        
-                        e_image = st.file_uploader("Nova Imagem", type=['png', 'jpg', 'jpeg'])
-                        
-                        if st.form_submit_button("Salvar Alterações"):
-                            img_bytes = e_image.read() if e_image else action_prod[8]
+                            st.markdown(f"**{row['name']}**")
+                            st.caption(f"{row['brand']} | {row['style']}")
+                            st.markdown(f"**Preço:** R$ {row['price']:.2f}")
+                            st.markdown(f"**Validade:** {row['expiration_date']}")
+                            st.markdown(f"**Estoque:** {row['quantity']}")
+                            
+                            # Actions Expander
+                            with st.expander("Gerenciar"):
+                                # Sale
+                                st.markdown("##### Vender")
+                                if row['quantity'] > 0:
+                                    sell_qty = st.number_input("Qtd", min_value=1, max_value=int(row['quantity']), key=f"sell_qty_{row['id']}")
+                                    if st.button("Vender", key=f"btn_sell_{row['id']}"):
+                                        user_id = st.session_state['user'][0] if 'user' in st.session_state and st.session_state['user'] else None
+                                        success, msg = db.register_sale(int(row['id']), sell_qty, user_id)
+                                        if success:
+                                            st.toast(msg, icon="✅")
+                                            st.rerun()
+                                        else:
+                                            st.toast(msg, icon="❌")
+                                else:
+                                    st.warning("Esgotado")
+                                
+                                st.divider()
+                                
+                                # Edit Trigger (Store ID in session to open modal/form elsewhere or inline)
+                                # Inline editing in a grid is complex. Let's use a dialog or stick to the form below.
+                                # For simplicity and robustness, we can use a button to load the 'Edit Form' at the top or a dialog.
+                                # Streamlit 1.23+ has st.experimental_dialog (now st.dialog). Assuming recent version.
+                                # If not, we fall back to session state loading.
+                                
+                                if st.button("Editar / Excluir", key=f"btn_edit_{row['id']}"):
+                                    st.session_state['edit_prod_id'] = int(row['id'])
+                                    st.rerun()
+
+    # Edit Modal/Section
+    if 'edit_prod_id' in st.session_state:
+        prod_id = st.session_state['edit_prod_id']
+        action_prod = db.get_product_by_id(prod_id)
+        if action_prod:
+            with st.form(f"edit_prod_form_{prod_id}"):
+                st.subheader(f"Editando: {action_prod[1]}")
+                e_name = st.text_input("Nome", value=action_prod[1])
+                
+                try: b_idx = utils.MARCAS.index(action_prod[2])
+                except: b_idx = 0
+                e_brand = st.selectbox("Marca", utils.MARCAS, index=b_idx)
+                
+                try: s_idx = utils.ESTILOS.index(action_prod[3])
+                except: s_idx = 0
+                e_style = st.selectbox("Estilo", utils.ESTILOS, index=s_idx)
+                
+                try: t_idx = utils.TIPOS.index(action_prod[4])
+                except: t_idx = 0
+                e_type = st.selectbox("Tipo", utils.TIPOS, index=t_idx)
+                
+                try: e_price_val = float(action_prod[5])
+                except: e_price_val = 0.0
+                e_price = st.number_input("Preço", value=e_price_val, min_value=0.01)
+                
+                try: e_qty_val = int(action_prod[6])
+                except: e_qty_val = 0
+                e_qty = st.number_input("Qtd", value=e_qty_val, min_value=0, step=1)
+                
+                # Safe date parsing
+                default_date = datetime.date.today()
+                if action_prod[7]:
+                    try:
+                        default_date = datetime.datetime.strptime(str(action_prod[7]), "%Y-%m-%d").date()
+                    except:
+                        try:
+                             # Try fallback format if different
+                             default_date = datetime.datetime.strptime(str(action_prod[7]), "%d/%m/%Y").date()
+                        except:
+                            pass
+                e_exp_date = st.date_input("Vencimento", value=default_date)
+                
+                e_image = st.file_uploader("Nova Imagem", type=['png', 'jpg', 'jpeg'])
+                
+                col_save, col_del, col_close = st.columns(3)
+                
+                with col_save:
+                    if st.form_submit_button("Salvar"):
+                        try:
+                            img_bytes = action_prod[8]
+                            if e_image:
+                                img_bytes = e_image.read()
+                            
                             db.update_product(prod_id, e_name, e_brand, e_style, e_type, e_price, e_qty, str(e_exp_date), img_bytes)
                             st.success("Produto atualizado!")
+                            if 'edit_prod_id' in st.session_state: del st.session_state['edit_prod_id']
                             st.rerun()
-                    
-                    if st.button("EXCLUIR PRODUTO", type="primary", key="btn_del"):
-                        db.delete_product(prod_id)
-                        st.success("Produto excluído.")
-                        del st.session_state['act_prod_id_c']
+                        except Exception as e:
+                            st.error(f"Erro ao atualizar: {e}")
+                
+                with col_del:
+                    if st.form_submit_button("EXCLUIR", type="primary"):
+                        try:
+                            db.delete_product(prod_id)
+                            st.success("Produto excluído.")
+                            if 'edit_prod_id' in st.session_state: del st.session_state['edit_prod_id']
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao excluir: {e}")
+                        
+                with col_close:
+                    if st.form_submit_button("Cancelar"):
+                        if 'edit_prod_id' in st.session_state: del st.session_state['edit_prod_id']
                         st.rerun()
-            else:
-                st.error("Produto não encontrado.")
+        else:
+             if 'edit_prod_id' in st.session_state: del st.session_state['edit_prod_id']
+             st.rerun()

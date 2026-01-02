@@ -9,6 +9,9 @@ st.set_page_config(page_title="Cores & Fragrâncias", layout="wide", page_icon="
 # Init DB
 db.init_db()
 
+# Ensure directories
+utils.ensure_directories()
+
 # Apply CSS
 utils.apply_custom_css()
 

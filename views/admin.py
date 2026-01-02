@@ -3,6 +3,7 @@ import pandas as pd
 import database as db
 import utils
 import views.components as components
+import datetime
 
 def show_admin_view(user):
     st.title(f"Painel Administrativo - Bem-vindo, {user[4]}")
@@ -10,6 +11,28 @@ def show_admin_view(user):
     tab1, tab2, tab3 = st.tabs(["Dashboard", "Gerenciar Produtos", "Gerenciar Usuários"])
     
     with tab1:
+        # Aniversariantes do Dia
+        birthday_clients = db.get_birthday_clients()
+        if not birthday_clients.empty:
+            today = datetime.date.today()
+            birthdays_today = []
+            
+            for index, row in birthday_clients.iterrows():
+                try:
+                    bdate_str = str(row['birth_date'])
+                    # Assume formato YYYY-MM-DD
+                    bdate = datetime.datetime.strptime(bdate_str, "%Y-%m-%d").date()
+                    if bdate.month == today.month and bdate.day == today.day:
+                        birthdays_today.append(row)
+                except:
+                    pass
+            
+            if birthdays_today:
+                st.warning(f"🎉 Existem {len(birthdays_today)} aniversariante(s) hoje! Lembre-se de parabenizá-los.")
+                for b_client in birthdays_today:
+                    st.markdown(f"🎂 **{b_client['name']}** - Tel: {b_client['phone'] or 'N/A'} - Email: {b_client['email'] or 'N/A'}")
+                st.divider()
+
         st.header("Visão Geral")
         products = db.get_products()
         sales = db.get_sales_report()
@@ -57,6 +80,47 @@ def show_admin_view(user):
         else:
             st.info("Nenhuma venda registrada.")
 
+        st.divider()
+        st.subheader("Visualização Rápida de Produtos (Dashboard)")
+        
+        # Dashboard Product Grid (Simplified view, maybe allow sale)
+        if not products.empty:
+            cols_per_row = 4
+            rows = len(products)
+            
+            for i in range(0, rows, cols_per_row):
+                cols = st.columns(cols_per_row)
+                for j in range(cols_per_row):
+                    if i + j < rows:
+                        row = products.iloc[i + j]
+                        with cols[j]:
+                            with st.container(border=True):
+                                # Image
+                                img_src = utils.get_product_image_source(row)
+                                if img_src:
+                                    st.image(img_src, use_container_width=True)
+                                else:
+                                    st.markdown("*Sem Imagem*")
+                                    
+                                st.markdown(f"**{row['name']}**")
+                                st.caption(f"Estoque: {row['quantity']}")
+                                st.markdown(f"**R$ {row['price']:.2f}**")
+                                st.caption(f"Val: {row['expiration_date']}")
+                                
+                                # Quick Sale Action
+                                if row['quantity'] > 0:
+                                    with st.expander("Vender"):
+                                        q_sell = st.number_input("Qtd", 1, int(row['quantity']), key=f"dash_sell_{row['id']}")
+                                        if st.button("OK", key=f"dash_btn_{row['id']}"):
+                                            success, msg = db.register_sale(int(row['id']), q_sell, user[0])
+                                            if success:
+                                                st.toast(msg, icon="✅")
+                                                st.rerun()
+                                            else:
+                                                st.toast(msg, icon="❌")
+        else:
+            st.info("Nenhum produto cadastrado.")
+
     with tab2:
         components.render_product_management()
 
@@ -68,18 +132,33 @@ def show_admin_view(user):
             new_role = st.selectbox("Função", ["admin", "funcionario", "cliente"])
             new_name = st.text_input("Nome Completo")
             
+            st.markdown("---")
+            st.caption("Informações Adicionais (Para Clientes)")
+            col_u1, col_u2 = st.columns(2)
+            with col_u1:
+                new_birth_date = st.date_input("Data de Nascimento", value=None, min_value=datetime.date(1920, 1, 1), format="DD/MM/YYYY")
+                new_email = st.text_input("Email")
+            with col_u2:
+                new_phone = st.text_input("Telefone")
+                new_cpf = st.text_input("CPF")
+            
             if st.form_submit_button("Criar Usuário"):
                 if new_user and new_pass:
-                    if db.create_user(new_user, new_pass, new_role, new_name):
+                    # Converter data para string
+                    bdate_val = str(new_birth_date) if new_birth_date else None
+                    
+                    if db.create_user(new_user, new_pass, new_role, new_name, bdate_val, new_email, new_phone, new_cpf):
                         st.success("Usuário criado!")
                         st.rerun()
                     else:
                         st.error("Erro ao criar (usuário já existe?)")
                 else:
-                    st.error("Preencha todos os campos")
+                    st.error("Preencha todos os campos obrigatórios")
                     
         st.subheader("Usuários Existentes")
         conn = db.get_connection()
-        users_df = pd.read_sql("SELECT id, username, role, name FROM users", conn)
+        # Update query to show new fields if needed, but dataframe might get too wide. 
+        # Keeping it simple or maybe showing email/phone.
+        users_df = pd.read_sql("SELECT id, username, role, name, email, phone FROM users", conn)
         conn.close()
         st.dataframe(users_df)
