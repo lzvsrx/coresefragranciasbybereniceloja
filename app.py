@@ -65,9 +65,40 @@ def main():
                 st.image("assets/logo.png", use_container_width=True)
             except:
                 pass
+            
             st.title("Menu")
-            st.write(f"Usuário: **{user[4]}**")
+            
+            # Profile Image Display
+            # Check if user tuple has the image column (index 9, since we added 5 cols to original 5)
+            # Original: id, user, pass, role, name (5)
+            # Added: birth, email, phone, cpf (4) -> total 9
+            # Added: profile_image (1) -> total 10. Index 9.
+            # Safety check on length
+            profile_img = None
+            if len(user) > 9 and user[9] is not None:
+                profile_img = user[9]
+            
+            if profile_img:
+                st.image(profile_img, width=150, caption=user[4])
+            else:
+                # Placeholder or just text
+                st.write(f"Usuário: **{user[4]}**")
+            
             st.write(f"Função: **{role.capitalize()}**")
+            
+            with st.expander("Alterar Foto de Perfil"):
+                new_profile_pic = st.file_uploader("Upload Foto", type=['png', 'jpg', 'jpeg'], key="profile_uploader")
+                if new_profile_pic:
+                    if st.button("Salvar Foto"):
+                        img_bytes = new_profile_pic.read()
+                        updated_user = db.update_user_image(user[0], img_bytes)
+                        if updated_user:
+                            st.session_state['user'] = updated_user
+                            st.success("Foto atualizada!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao atualizar.")
+
             st.divider()
             if st.button("Sair"):
                 st.session_state['user'] = None

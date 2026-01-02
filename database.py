@@ -24,7 +24,8 @@ def init_db():
             ("birth_date", "TEXT"),
             ("email", "TEXT"),
             ("phone", "TEXT"),
-            ("cpf", "TEXT")
+            ("cpf", "TEXT"),
+            ("profile_image", "BLOB")
         ]
         
         for col_name, col_type in cols_to_add:
@@ -110,6 +111,24 @@ def create_user(username, password, role, name, birth_date=None, email=None, pho
     except Exception as e:
         print(f"Erro ao criar usuário: {e}")
         return False
+    finally:
+        if conn: conn.close()
+
+def update_user_image(user_id, image_bytes):
+    conn = None
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("UPDATE users SET profile_image = ? WHERE id = ?", (image_bytes, user_id))
+        conn.commit()
+        
+        # Retorna o usuário atualizado para atualizar a sessão
+        c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        updated_user = c.fetchone()
+        return updated_user
+    except Exception as e:
+        print(f"Erro ao atualizar imagem do usuário: {e}")
+        return None
     finally:
         if conn: conn.close()
 
