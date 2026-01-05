@@ -7,13 +7,22 @@ from views import admin, employee, client
 st.set_page_config(page_title="Cores & Fragrâncias", layout="wide", page_icon="🛍️")
 
 # Init DB
-db.init_db()
+try:
+    db.init_db()
+except Exception as e:
+    st.error(f"Erro crítico no banco de dados: {e}")
 
 # Ensure directories
-utils.ensure_directories()
+try:
+    utils.ensure_directories()
+except Exception as e:
+    st.error(f"Erro nos diretórios do sistema: {e}")
 
 # Apply CSS
-utils.apply_custom_css()
+try:
+    utils.apply_custom_css()
+except Exception:
+    pass
 
 # Session State for Auth
 if 'user' not in st.session_state:
@@ -29,7 +38,7 @@ def login():
     col_l1, col_l2, col_l3 = st.columns([1,1,1])
     with col_l2:
         try:
-            st.image("assets/logo.png", use_container_width=True)
+            st.image("assets/logo.png", width=120)
         except:
             pass
             
@@ -61,12 +70,14 @@ def main():
         
         # Sidebar for Logout
         with st.sidebar:
-            try:
-                st.image("assets/logo.png", use_container_width=True)
-            except:
-                pass
-            
-            st.title("Menu")
+            col_s1, col_s2 = st.columns([1, 2])
+            with col_s1:
+                try:
+                    st.image("assets/logo.png", width=80)
+                except:
+                    pass
+            with col_s2:
+                st.markdown("## Menu")
             
             # Profile Image Display
             # Check if user tuple has the image column (index 9, since we added 5 cols to original 5)
@@ -114,4 +125,9 @@ def main():
             st.error("Função desconhecida.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error("Ocorreu um erro inesperado no sistema.")
+        st.error(f"Detalhes: {e}")
+        st.info("Por favor, tente recarregar a página.")

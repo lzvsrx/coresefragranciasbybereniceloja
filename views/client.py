@@ -15,8 +15,16 @@ def show_client_view(user):
         
         filtered_df = products
         if search:
-            filtered_df = products[products['name'].str.contains(search, case=False, na=False) |
-                                   products['brand'].str.contains(search, case=False, na=False)]
+            filtered_df = products[
+                products['name'].str.contains(search, case=False, na=False) |
+                products['brand'].str.contains(search, case=False, na=False) |
+                products['style'].str.contains(search, case=False, na=False) |
+                products['type'].str.contains(search, case=False, na=False) |
+                products['id'].astype(str).str.contains(search, case=False, na=False) |
+                products['price'].astype(str).str.contains(search, case=False, na=False) |
+                products['quantity'].astype(str).str.contains(search, case=False, na=False) |
+                products['expiration_date'].astype(str).str.contains(search, case=False, na=False)
+            ]
         
         # Grid Layout
         # Streamlit doesn't have a native grid, so we loop with columns
@@ -53,7 +61,7 @@ def show_client_view(user):
                                 st.markdown("*Sem Imagem*")
                                 
                             st.subheader(row['name'])
-                            st.caption(f"{row['brand']} - {row['style']}")
+                            st.caption(f"{row['brand']} | {row['style']} | {row['type']}")
                             st.markdown(f"#### R$ {row['price']:.2f}")
                             
                             if row['quantity'] > 0:

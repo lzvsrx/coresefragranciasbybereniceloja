@@ -1,10 +1,43 @@
 import streamlit as st
 import database as db
 import views.components as components
+import datetime
 
 def show_employee_view(user):
     st.title(f"Painel do Funcionário - {user[4]}")
     
+    # Aniversariantes do Dia
+    birthday_clients = db.get_birthday_clients()
+    if not birthday_clients.empty:
+        today = datetime.date.today()
+        birthdays_today = []
+        
+        for index, row in birthday_clients.iterrows():
+            try:
+                bdate_str = str(row['birth_date'])
+                bdate = datetime.datetime.strptime(bdate_str, "%Y-%m-%d").date()
+                if bdate.month == today.month and bdate.day == today.day:
+                    birthdays_today.append(row)
+            except:
+                pass
+        
+        if birthdays_today:
+            st.error(f"🎉 ATENÇÃO: HOJE É ANIVERSÁRIO DE {len(birthdays_today)} CLIENTE(S)!")
+            st.markdown("""
+            <div style="background-color: #ffeebb; padding: 15px; border-radius: 10px; border: 2px solid #ffa500; margin-bottom: 20px;">
+                <h3 style="color: #d35400; margin-top: 0;">🎂 Oportunidade de Venda!</h3>
+                <p style="font-size: 16px;">
+                    Lembre-se de enviar uma mensagem parabenizando e <b>sugerindo a compra de um presente especial</b> da loja!
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with st.expander(f"Ver Aniversariantes ({len(birthdays_today)})"):
+                for b_client in birthdays_today:
+                    st.markdown(f"🎈 **{b_client['name']}**")
+                    st.text(f"📞 {b_client['phone'] or 'S/ Tel'} | 📧 {b_client['email'] or 'S/ Email'}")
+                    st.divider()
+
     tab1, tab2 = st.tabs(["Vendas (PDV)", "Gerenciar Estoque"])
     
     with tab1:

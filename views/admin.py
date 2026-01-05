@@ -28,10 +28,22 @@ def show_admin_view(user):
                     pass
             
             if birthdays_today:
-                st.warning(f"🎉 Existem {len(birthdays_today)} aniversariante(s) hoje! Lembre-se de parabenizá-los.")
+                st.error(f"🎉 ATENÇÃO: HOJE É ANIVERSÁRIO DE {len(birthdays_today)} CLIENTE(S)!")
+                st.markdown("""
+                <div style="background-color: #ffeebb; padding: 15px; border-radius: 10px; border: 2px solid #ffa500; margin-bottom: 20px;">
+                    <h3 style="color: #d35400; margin-top: 0;">🎂 Oportunidade de Venda!</h3>
+                    <p style="font-size: 16px;">
+                        Lembre-se de enviar uma mensagem parabenizando e <b>sugerindo a compra de um presente especial</b> da loja!
+                        Ofereça um desconto ou mostre os lançamentos.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
                 for b_client in birthdays_today:
-                    st.markdown(f"🎂 **{b_client['name']}** - Tel: {b_client['phone'] or 'N/A'} - Email: {b_client['email'] or 'N/A'}")
-                st.divider()
+                    st.markdown(f"🎈 **{b_client['name']}**")
+                    st.text(f"📞 Telefone: {b_client['phone'] or 'Não informado'}")
+                    st.text(f"📧 Email: {b_client['email'] or 'Não informado'}")
+                    st.divider()
 
         st.header("Visão Geral")
         products = db.get_products()
@@ -85,6 +97,21 @@ def show_admin_view(user):
         
         # Dashboard Product Grid (Simplified view, maybe allow sale)
         if not products.empty:
+            # Area de Pesquisa no Dashboard
+            search_term = st.text_input("🔍 Pesquisar Produto", placeholder="Nome, Marca, Estilo ou Tipo...", key="dash_search")
+            
+            if search_term:
+                products = products[
+                    products['name'].str.contains(search_term, case=False, na=False) |
+                    products['brand'].str.contains(search_term, case=False, na=False) |
+                    products['style'].str.contains(search_term, case=False, na=False) |
+                    products['type'].str.contains(search_term, case=False, na=False) |
+                    products['id'].astype(str).str.contains(search_term, case=False, na=False) |
+                    products['price'].astype(str).str.contains(search_term, case=False, na=False) |
+                    products['quantity'].astype(str).str.contains(search_term, case=False, na=False) |
+                    products['expiration_date'].astype(str).str.contains(search_term, case=False, na=False)
+                ]
+
             cols_per_row = 4
             rows = len(products)
             
@@ -142,12 +169,27 @@ def show_admin_view(user):
                 new_phone = st.text_input("Telefone")
                 new_cpf = st.text_input("CPF")
             
+            st.caption("Preferências do Cliente")
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                pref_type = st.multiselect("Tipos Favoritos", utils.TIPOS)
+            with col_p2:
+                pref_brand = st.multiselect("Marcas Favoritas", utils.MARCAS)
+            with col_p3:
+                pref_style = st.multiselect("Estilos Favoritos", utils.ESTILOS)
+
             if st.form_submit_button("Criar Usuário"):
                 if new_user and new_pass:
                     # Converter data para string
                     bdate_val = str(new_birth_date) if new_birth_date else None
                     
-                    if db.create_user(new_user, new_pass, new_role, new_name, bdate_val, new_email, new_phone, new_cpf):
+                    # Converter preferências
+                    p_type_str = ", ".join(pref_type) if pref_type else None
+                    p_brand_str = ", ".join(pref_brand) if pref_brand else None
+                    p_style_str = ", ".join(pref_style) if pref_style else None
+                    
+                    if db.create_user(new_user, new_pass, new_role, new_name, bdate_val, new_email, new_phone, new_cpf,
+                                      preferred_type=p_type_str, preferred_brand=p_brand_str, preferred_style=p_style_str):
                         st.success("Usuário criado!")
                         st.rerun()
                     else:

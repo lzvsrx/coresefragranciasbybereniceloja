@@ -187,8 +187,16 @@ def render_product_management():
     filter_text = st.text_input("Buscar Produto", key="search_prod")
     if not products_df.empty:
         if filter_text:
-            products_df = products_df[products_df['name'].str.contains(filter_text, case=False, na=False) | 
-                                      products_df['brand'].str.contains(filter_text, case=False, na=False)]
+            products_df = products_df[
+                products_df['name'].str.contains(filter_text, case=False, na=False) | 
+                products_df['brand'].str.contains(filter_text, case=False, na=False) |
+                products_df['style'].str.contains(filter_text, case=False, na=False) |
+                products_df['type'].str.contains(filter_text, case=False, na=False) |
+                products_df['id'].astype(str).str.contains(filter_text, case=False, na=False) |
+                products_df['price'].astype(str).str.contains(filter_text, case=False, na=False) |
+                products_df['quantity'].astype(str).str.contains(filter_text, case=False, na=False) |
+                products_df['expiration_date'].astype(str).str.contains(filter_text, case=False, na=False)
+            ]
         
         # Grid Layout with Images and Actions
         cols_per_row = 3
