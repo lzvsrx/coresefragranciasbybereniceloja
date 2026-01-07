@@ -1,5 +1,7 @@
 import streamlit as st
 import base64
+import io
+from pathlib import Path
 
 # Constantes do Sistema
 MARCAS = [
@@ -42,31 +44,22 @@ COLOR_TEXT_LARGE_1 = "#800020"
 COLOR_TEXT_LARGE_2 = "#36454F"
 
 import os
-from pathlib import Path
 
 def get_product_image_source(product_row):
     """
     Returns the image source for st.image.
-    Prioritizes file in 'assets/' with name '{id}_*', then database blob.
+    Fetches directly from database blob to ensure persistence.
+    Ignores local file system to avoid issues with ephemeral storage (Streamlit Cloud).
     """
-    # Try assets first
-    try:
-        assets_path = Path("assets")
-        if assets_path.exists():
-            # List matching files
-            # Optimization: This listing happens every time. In high load, cache this list.
-            # For this app size, it's okay.
-            for f in os.listdir(assets_path):
-                if f.startswith(f"{product_row['id']}_"):
-                    return str(assets_path / f)
-    except Exception:
-        pass
+    img_data = product_row.get('image')
     
-    # Try Blob
-    if product_row['image']:
-        return product_row['image']
+    # Se houver dados e forem bytes não vazios
+    if img_data is not None and isinstance(img_data, bytes) and len(img_data) > 0:
+        return io.BytesIO(img_data)
         
     return None
+
+
 
 def ensure_directories():
     """Garante que diretórios essenciais existam"""
@@ -281,7 +274,6 @@ def apply_custom_css():
 
 from fpdf import FPDF
 import pandas as pd
-import io
 
 def generate_pdf(products_df):
     pdf = FPDF()
